@@ -1,0 +1,26 @@
+{
+  "name": "hiihive",
+  "private": true,
+  "version": "0.1.0",
+  "description": "HiiHive college community platform",
+  "workspaces": [
+    "apps/api",
+    "packages/contracts"
+  ],
+  "scripts": {
+    "build": "npm run build -w @hiihive/contracts && npm run build -w @hiihive/api",
+    "test": "npm run build -w @hiihive/contracts && npm test -w @hiihive/api",
+    "dev:api": "npm run start:dev -w @hiihive/api",
+    "prisma:migrate": "npm run prisma:migrate -w @hiihive/api",
+    "prisma:deploy": "npm run prisma:deploy -w @hiihive/api",
+    "seed": "npm run seed -w @hiihive/api",
+    "mobile:install": "npm install --prefix apps/mobile",
+    "mobile:start": "npm start --prefix apps/mobile",
+    "mobile:test": "npm test --prefix apps/mobile -- --runInBand",
+    "mobile:android": "npm run android --prefix apps/mobile",
+    "mobile:ios": "npm run ios --prefix apps/mobile"
+  },
+  "engines": {
+    "node": ">=22.11.0"
+  }
+}

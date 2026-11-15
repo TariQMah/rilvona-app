@@ -1,0 +1,810 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  COMMUNITY_MODERATOR
+  COLLEGE_ADMIN
+  PLATFORM_ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  DEACTIVATED
+  DELETED
+}
+
+enum VerificationMethod {
+  COLLEGE_EMAIL
+  MANUAL
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum CommunityCategory {
+  COLLEGE
+  DEPARTMENT
+  INTEREST
+}
+
+enum CommunityVisibility {
+  PUBLIC
+  RESTRICTED
+}
+
+enum MembershipRole {
+  MEMBER
+  MODERATOR
+}
+
+enum MembershipStatus {
+  ACTIVE
+  LEFT
+  BANNED
+  PENDING
+}
+
+enum PostVisibility {
+  PUBLIC
+  COLLEGE
+  COMMUNITY
+}
+
+enum ReactionType {
+  LIKE
+}
+
+enum EventScope {
+  COLLEGE
+  INTERCOLLEGE
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+enum RegistrationStatus {
+  REGISTERED
+  WAITLISTED
+  CANCELLED
+  ATTENDED
+}
+
+enum NotificationType {
+  REPLY
+  MENTION
+  COMMUNITY
+  EVENT
+  REGISTRATION
+  MODERATION
+  SECURITY
+  LMS
+}
+
+enum LmsProvider {
+  CHANDIGARH_UNIVERSITY
+}
+
+enum LmsSyncStatus {
+  CONNECTED
+  SYNCING
+  ERROR
+  DISCONNECTED
+}
+
+enum LmsAlertCategory {
+  ATTENDANCE
+  TIMETABLE
+  MARKS
+  ASSIGNMENT
+  ANNOUNCEMENT
+  EXAM
+}
+
+enum DevicePlatform {
+  IOS
+  ANDROID
+}
+
+enum ReportTargetType {
+  POST
+  COMMENT
+  QUESTION
+  ANSWER
+  USER
+  EVENT
+  COMMUNITY
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+enum ModerationActionType {
+  DISMISS
+  REMOVE_CONTENT
+  WARN_USER
+  BAN_MEMBER
+  SUSPEND_USER
+}
+
+enum OtpPurpose {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
+
+enum UploadStatus {
+  PENDING
+  READY
+}
+
+enum ProfileVisibility {
+  PUBLIC
+  COLLEGE
+  PRIVATE
+}
+
+model User {
+  id               String        @id @default(uuid())
+  email            String        @unique
+  phone            String?       @unique
+  passwordHash     String?
+  googleId         String?       @unique
+  role             UserRole      @default(STUDENT)
+  status           AccountStatus @default(ACTIVE)
+  collegeId        String?
+  emailVerifiedAt  DateTime?
+  phoneVerifiedAt  DateTime?
+  tokenVersion     Int           @default(0)
+  failedLoginCount Int           @default(0)
+  lockedUntil      DateTime?
+  deactivatedAt    DateTime?
+  deletedAt        DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  college              College?                @relation(fields: [collegeId], references: [id])
+  profile              UserProfile?
+  notificationPrefs    NotificationPreference?
+  consents             ConsentRecord[]
+  verifications        CollegeVerification[]
+  reviews              CollegeVerification[]   @relation("VerificationReviewer")
+  memberships          CommunityMembership[]
+  communitiesCreated   Community[]             @relation("CommunityCreator")
+  posts                Post[]
+  comments             Comment[]
+  reactions            Reaction[]
+  bookmarks            Bookmark[]
+  questions            Question[]
+  answers              Answer[]
+  answerVotes          AnswerVote[]
+  organizedEvents      Event[]
+  registrations        EventRegistration[]
+  notifications        Notification[]
+  deviceTokens         DeviceToken[]
+  reportsFiled         Report[]                @relation("Reporter")
+  moderationActions    ModerationAction[]
+  blocksGiven          BlockedUser[]           @relation("Blocker")
+  blocksReceived       BlockedUser[]           @relation("Blocked")
+  sessions             RefreshTokenSession[]
+  auditLogs            AuditLog[]
+  otpChallenges        OtpChallenge[]
+  uploads              MediaUpload[]
+  lmsConnection        LmsConnection?
+
+  @@index([collegeId])
+  @@index([status])
+  @@map("users")
+}
+
+model UserProfile {
+  userId            String            @id
+  displayName       String
+  username          String            @unique
+  bio               String?
+  avatarUrl         String?
+  course            String?
+  graduationYear    Int?
+  interests         String[]
+  skills            String[]
+  profileVisibility ProfileVisibility @default(PUBLIC)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  user              User              @relation(fields: [userId], references: [id])
+
+  @@map("user_profiles")
+}
+
+model NotificationPreference {
+  userId      String  @id
+  replies     Boolean @default(true)
+  community   Boolean @default(true)
+  events      Boolean @default(true)
+  moderation  Boolean @default(true)
+  security    Boolean @default(true)
+  lms         Boolean @default(true)
+  pushEnabled Boolean @default(true)
+  user        User    @relation(fields: [userId], references: [id])
+
+  @@map("notification_preferences")
+}
+
+model ConsentRecord {
+  id             String   @id @default(uuid())
+  userId         String
+  termsVersion   String
+  privacyVersion String
+  acceptedAt     DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("consent_records")
+}
+
+model College {
+  id                       String   @id @default(uuid())
+  name                     String
+  slug                     String   @unique
+  city                     String
+  state                    String
+  emailDomain              String?
+  allowsManualVerification Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  users         User[]
+  verifications CollegeVerification[]
+  communities   Community[]
+  posts         Post[]
+  questions     Question[]
+  events        Event[]
+  lmsLinks      LmsConnection[]
+
+  @@map("colleges")
+}
+
+model CollegeVerification {
+  id           String               @id @default(uuid())
+  userId       String
+  collegeId    String
+  method       VerificationMethod
+  status       VerificationStatus   @default(PENDING)
+  note         String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  user     User    @relation(fields: [userId], references: [id])
+  college  College @relation(fields: [collegeId], references: [id])
+  reviewer User?   @relation("VerificationReviewer", fields: [reviewedById], references: [id])
+
+  @@index([userId, status])
+  @@index([collegeId, status])
+  @@map("college_verifications")
+}
+
+model Community {
+  id          String              @id @default(uuid())
+  collegeId   String?
+  name        String
+  slug        String              @unique
+  description String
+  rules       String
+  category    CommunityCategory
+  visibility  CommunityVisibility
+  createdById String
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  deletedAt   DateTime?
+
+  college     College?              @relation(fields: [collegeId], references: [id])
+  createdBy   User                  @relation("CommunityCreator", fields: [createdById], references: [id])
+  memberships CommunityMembership[]
+  posts       Post[]
+  questions   Question[]
+
+  @@index([collegeId, category])
+  @@map("communities")
+}
+
+model CommunityMembership {
+  id          String           @id @default(uuid())
+  communityId String
+  userId      String
+  role        MembershipRole   @default(MEMBER)
+  status      MembershipStatus @default(ACTIVE)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  community Community @relation(fields: [communityId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([communityId, userId])
+  @@index([userId, status])
+  @@map("community_memberships")
+}
+
+model Post {
+  id          String         @id @default(uuid())
+  authorId    String
+  collegeId   String?
+  communityId String?
+  body        String
+  visibility  PostVisibility
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+
+  author    User        @relation(fields: [authorId], references: [id])
+  college   College?    @relation(fields: [collegeId], references: [id])
+  community Community?  @relation(fields: [communityId], references: [id])
+  media     PostMedia[]
+  comments  Comment[]
+  reactions Reaction[]
+  bookmarks Bookmark[]
+
+  @@index([createdAt, id])
+  @@index([communityId, createdAt])
+  @@index([collegeId, createdAt])
+  @@map("posts")
+}
+
+model MediaUpload {
+  id         String       @id @default(uuid())
+  userId     String
+  storageKey String       @unique
+  mimeType   String
+  byteSize   Int
+  status     UploadStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+  user       User         @relation(fields: [userId], references: [id])
+  postMedia  PostMedia?
+
+  @@map("media_uploads")
+}
+
+model PostMedia {
+  id         String      @id @default(uuid())
+  postId     String
+  uploadId   String      @unique
+  storageKey String
+  mimeType   String
+  sortOrder  Int         @default(0)
+  post       Post        @relation(fields: [postId], references: [id])
+  upload     MediaUpload @relation(fields: [uploadId], references: [id])
+
+  @@map("post_media")
+}
+
+model Comment {
+  id        String    @id @default(uuid())
+  postId    String
+  authorId  String
+  parentId  String?
+  body      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  post    Post      @relation(fields: [postId], references: [id])
+  author  User      @relation(fields: [authorId], references: [id])
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies Comment[] @relation("CommentReplies")
+
+  @@index([postId, createdAt])
+  @@map("comments")
+}
+
+model Reaction {
+  id        String       @id @default(uuid())
+  userId    String
+  postId    String
+  type      ReactionType @default(LIKE)
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id])
+  post      Post         @relation(fields: [postId], references: [id])
+
+  @@unique([userId, postId])
+  @@map("reactions")
+}
+
+model Bookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  post      Post     @relation(fields: [postId], references: [id])
+
+  @@unique([userId, postId])
+  @@map("bookmarks")
+}
+
+model Question {
+  id               String    @id @default(uuid())
+  authorId         String
+  collegeId        String?
+  communityId      String?
+  pseudonym        String
+  title            String
+  body             String
+  acceptedAnswerId String?   @unique
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  author         User      @relation(fields: [authorId], references: [id])
+  college        College?  @relation(fields: [collegeId], references: [id])
+  community      Community? @relation(fields: [communityId], references: [id])
+  answers        Answer[]  @relation("QuestionAnswers")
+  acceptedAnswer Answer?   @relation("AcceptedAnswer", fields: [acceptedAnswerId], references: [id])
+
+  @@index([createdAt, id])
+  @@map("questions")
+}
+
+model Answer {
+  id         String    @id @default(uuid())
+  questionId String
+  authorId   String
+  pseudonym  String
+  body       String
+  score      Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  question    Question     @relation("QuestionAnswers", fields: [questionId], references: [id])
+  author      User         @relation(fields: [authorId], references: [id])
+  votes       AnswerVote[]
+  acceptedFor Question?    @relation("AcceptedAnswer")
+
+  @@index([questionId, score])
+  @@map("answers")
+}
+
+model AnswerVote {
+  id        String   @id @default(uuid())
+  answerId  String
+  userId    String
+  value     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  answer    Answer   @relation(fields: [answerId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([answerId, userId])
+  @@map("answer_votes")
+}
+
+model Event {
+  id              String      @id @default(uuid())
+  organizerId     String
+  collegeId       String?
+  title           String
+  description     String
+  location        String
+  startsAt        DateTime
+  endsAt          DateTime
+  scope           EventScope
+  status          EventStatus @default(PUBLISHED)
+  capacity        Int?
+  waitlistEnabled Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  deletedAt       DateTime?
+
+  organizer     User                @relation(fields: [organizerId], references: [id])
+  college       College?            @relation(fields: [collegeId], references: [id])
+  registrations EventRegistration[]
+
+  @@index([startsAt, id])
+  @@index([status, startsAt])
+  @@map("events")
+}
+
+model EventRegistration {
+  id        String             @id @default(uuid())
+  eventId   String
+  userId    String
+  status    RegistrationStatus
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([eventId, userId])
+  @@index([eventId, status])
+  @@map("event_registrations")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model DeviceToken {
+  id         String         @id @default(uuid())
+  userId     String
+  token      String         @unique
+  platform   DevicePlatform
+  disabledAt DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  user       User           @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+model Report {
+  id         String           @id @default(uuid())
+  reporterId String
+  targetType ReportTargetType
+  targetId   String
+  reason     String
+  details    String?
+  status     ReportStatus     @default(OPEN)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  reporter User               @relation("Reporter", fields: [reporterId], references: [id])
+  actions  ModerationAction[]
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+  @@map("reports")
+}
+
+model ModerationAction {
+  id         String               @id @default(uuid())
+  reportId   String?
+  actorId    String
+  action     ModerationActionType
+  targetType ReportTargetType
+  targetId   String
+  notes      String?
+  createdAt  DateTime             @default(now())
+
+  report Report? @relation(fields: [reportId], references: [id])
+  actor  User    @relation(fields: [actorId], references: [id])
+
+  @@index([targetType, targetId])
+  @@map("moderation_actions")
+}
+
+model BlockedUser {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id])
+  blocked User @relation("Blocked", fields: [blockedId], references: [id])
+
+  @@unique([blockerId, blockedId])
+  @@map("blocked_users")
+}
+
+model RefreshTokenSession {
+  id           String    @id @default(uuid())
+  userId       String
+  familyId     String
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?   @unique
+  userAgent    String?
+  ip           String?
+  createdAt    DateTime  @default(now())
+  user         User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_token_sessions")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation(fields: [actorId], references: [id])
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+model OtpChallenge {
+  id         String     @id @default(uuid())
+  userId     String
+  purpose    OtpPurpose
+  codeHash   String
+  attempts   Int        @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime   @default(now())
+  user       User       @relation(fields: [userId], references: [id])
+
+  @@index([userId, purpose])
+  @@map("otp_challenges")
+}
+
+model LmsConnection {
+  id              String        @id @default(uuid())
+  userId          String        @unique
+  collegeId       String?
+  provider        LmsProvider   @default(CHANDIGARH_UNIVERSITY)
+  studentUid      String
+  studentName     String?
+  program         String?
+  semester        Int           @default(5)
+  section         String?
+  sectionGroup    String?
+  /// The student's own portal photo as a data URI (small, shown in the app header).
+  photo           String?       @db.Text
+  mentor          Json?
+  notices         Json?
+  syncStatus      LmsSyncStatus @default(CONNECTED)
+  lastSyncedAt    DateTime?
+  lastError       String?
+  isDemo          Boolean       @default(false)
+  dataSource      String        @default("CUIMS_IMPORT")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  college    College?           @relation(fields: [collegeId], references: [id])
+  attendance AttendanceRecord[]
+  timetable  TimetableSlot[]
+  marks      CourseMark[]
+  alerts     LmsPortalAlert[]
+  attendanceLog AttendanceEntry[]
+
+  @@map("lms_connections")
+}
+
+model AttendanceRecord {
+  id               String        @id @default(uuid())
+  connectionId     String
+  courseCode       String
+  courseName       String
+  facultyName      String?
+  attendedClasses  Int
+  deliveredClasses Int
+  dutyLeave        Int           @default(0)
+  percentage       Float
+  minRequired      Float         @default(75)
+  lastLectureAt    DateTime?
+  lastStatus       String?
+  updatedAt        DateTime      @updatedAt
+  connection       LmsConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, courseCode])
+  @@map("attendance_records")
+}
+
+/// One marked lecture from the portal's full attendance report.
+model AttendanceEntry {
+  id           String        @id @default(uuid())
+  connectionId String
+  courseCode   String
+  occurredOn   DateTime      @db.Date
+  timing       String        @default("")
+  status       String
+  connection   LmsConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, courseCode, occurredOn, timing])
+  @@index([connectionId, courseCode, occurredOn])
+  @@map("attendance_entries")
+}
+
+model TimetableSlot {
+  id           String        @id @default(uuid())
+  connectionId String
+  dayOfWeek    Int
+  startTime    String
+  endTime      String
+  courseCode   String
+  courseName   String
+  room         String
+  facultyName  String?
+  slotType     String        @default("LECTURE")
+  section      String?
+  connection   LmsConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId, dayOfWeek])
+  @@map("timetable_slots")
+}
+
+model CourseMark {
+  id             String        @id @default(uuid())
+  connectionId   String
+  semester       Int           @default(5)
+  courseCode     String
+  courseName     String
+  assessmentName String
+  category       String        @default("THEORY")
+  obtainedMarks  Float
+  maxMarks       Float
+  weightage      Float?
+  publishedAt    DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  connection     LmsConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, courseCode, assessmentName])
+  @@map("course_marks")
+}
+
+model LmsPortalAlert {
+  id           String           @id @default(uuid())
+  connectionId String
+  externalRef  String
+  portalSource String           @default("CUIMS")
+  category     LmsAlertCategory
+  courseCode   String?
+  title        String
+  body         String
+  actionUrl    String?
+  publishedAt  DateTime         @default(now())
+  createdAt    DateTime         @default(now())
+  connection   LmsConnection    @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, externalRef])
+  @@index([connectionId, publishedAt])
+  @@map("lms_portal_alerts")
+}
+
+enum AppPlatform {
+  ANDROID
+  IOS
+}
+
+/// Version control for the mobile apps, edited from the admin panel. One row per platform.
+model AppVersionConfig {
+  platform          AppPlatform @id
+  latestVersionCode Int         @default(1)
+  latestVersionName String      @default("1.0.0")
+  /// Builds older than this are blocked until the user updates.
+  minVersionCode    Int         @default(1)
+  /// When true, every build older than the latest is blocked, not only those below the minimum.
+  forceUpdate       Boolean     @default(false)
+  releaseNotes      String      @default("")
+  storeUrl          String      @default("")
+  updatedAt         DateTime    @updatedAt
+
+  @@map("app_version_configs")
+}

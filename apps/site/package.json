@@ -1,0 +1,9 @@
+{
+  "name": "@hiihive/site",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Rilvona landing page, privacy policy and terms (static files)",
+  "scripts": {
+    "build": "node build.mjs"
+  }
+}
