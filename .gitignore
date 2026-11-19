@@ -49,3 +49,6 @@ IconKitchen-Output.zip
 
 # Google OAuth client downloads hold secrets; never commit them
 client_secret_*.json
+
+# Staged APKs for upload by apps/site/deploy.sh
+apps/site/apk/
