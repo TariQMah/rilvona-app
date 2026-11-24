@@ -13,7 +13,7 @@ export type LocalMobileConfig = {
 
 const DEFAULT_API_ORIGIN = 'https://api.rilvona.com';
 const DEFAULT_GOOGLE_WEB_CLIENT_ID =
-  '336016339844-qigplr2850rt69199hmcpmbfkmfksua0.apps.googleusercontent.com';
+  '336016339844-qipqlr2850rt69199hmcpmbfmkfksua0.apps.googleusercontent.com';
 const DEFAULT_GOOGLE_IOS_CLIENT_ID = '';
 
 // Merge the local overrides over the production defaults, field by field, so a
